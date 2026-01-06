@@ -11,13 +11,13 @@ use crate::{
 use log::{debug, info, trace, warn};
 use openvr as vr;
 use openxr as xr;
-use std::{mem::offset_of, sync::RwLock};
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc, Mutex, Once,
 };
 use std::time::Instant;
 use std::{ffi::c_char, ops::Deref};
+use std::mem::offset_of;
 
 #[derive(Default)]
 pub struct CompositorSessionData(Mutex<Option<DynFrameController>>);
@@ -98,6 +98,9 @@ impl Compositor {
 
     fn maybe_wait_frame(&self, session_data: &SessionData) {
         tracy_span!();
+        if self.openxr.exited() {
+            return;
+        }
         let mut frame_lock = { session_data.comp_data.0.lock().unwrap() };
         self.frame_state
             .lock()
@@ -109,17 +112,28 @@ impl Compositor {
         };
 
         #[macros::any_graphics(DynFrameController)]
-        fn wait_frame<G: GraphicsBackend + 'static>(ctrl: &mut FrameController<G>) -> xr::Time {
-            ctrl.wait_frame()
+        fn wait_frame<G: GraphicsBackend + 'static>(
+            ctrl: &mut FrameController<G>,
+            openxr: &OpenXrData<Compositor>,
+        ) -> Option<xr::Time> {
+            let res = ctrl.wait_frame();
+            if let Err(openxr::sys::Result::ERROR_INSTANCE_LOST) = res {
+                openxr.set_exited();
+                None
+            } else {
+                Some(res.unwrap())
+            }
         }
-
-        self.openxr
-            .display_time
-            .set(ctrl.with_any_graphics_mut::<wait_frame>(()));
+        if let Some(time) = ctrl.with_any_graphics_mut::<wait_frame>(&self.openxr) {
+            self.openxr.display_time.set(time);
+        }
     }
 
     fn maybe_begin_frame(&self, session_data: &SessionData) {
         tracy_span!();
+        if self.openxr.exited() {
+            return;
+        }
         let mut frame_lock = { session_data.comp_data.0.lock().unwrap() };
         if !self
             .frame_state
@@ -136,11 +150,19 @@ impl Compositor {
         };
 
         #[macros::any_graphics(DynFrameController)]
-        fn begin_frame<G: GraphicsBackend + 'static>(ctrl: &mut FrameController<G>) {
-            ctrl.begin_frame()
+        fn begin_frame<G: GraphicsBackend + 'static>(
+            ctrl: &mut FrameController<G>,
+            openxr: &OpenXrData<Compositor>,
+        ) {
+            let res = ctrl.begin_frame();
+            if let Err(openxr::sys::Result::ERROR_INSTANCE_LOST) = res {
+                openxr.set_exited();
+            } else {
+                res.unwrap();
+            }
         }
 
-        ctrl.with_any_graphics_mut::<begin_frame>(());
+        ctrl.with_any_graphics_mut::<begin_frame>(&self.openxr);
     }
 
     pub fn initialize_real_session(
@@ -867,7 +889,7 @@ impl vr::IVRCompositor029_Interface for Compositor {
         tracy_span!("WaitGetPoses impl");
         // This should be called every frame - we must regularly poll events
         self.openxr.poll_events();
-        if unsafe{*self.openxr.exited.inner.get()}{
+        if self.openxr.exited() {
             return vr::EVRCompositorError::RequestFailed;
         }
         self.focused.call_once(|| {});
@@ -1098,51 +1120,50 @@ impl<G: GraphicsBackend> FrameController<G> {
         self.acquire_swapchain_image();
         self.eyes_submitted = Default::default();
     }
-
-    fn acquire_swapchain_image(&mut self) {
+    #[must_use]
+    fn acquire_swapchain_image(&mut self) -> openxr::Result<()> {
         let swapchain = &mut self
             .swapchain_data
             .as_mut()
             .expect("Can't acquire swapchain image with no swapchain!")
             .swapchain;
 
-        self.image_index = swapchain
-            .acquire_image()
-            .expect("Failed to acquire swapchain image") as usize;
+        self.image_index = swapchain.acquire_image()? as usize;
+        // .expect("Failed to acquire swapchain image") as usize;
 
         trace!("waiting image");
         {
             tracy_span!("wait swapchain image");
-            swapchain
-                .wait_image(xr::Duration::INFINITE)
-                .expect("Failed to wait for swapchain image");
+            swapchain.wait_image(xr::Duration::INFINITE)?;
+            // .expect("Failed to wait for swapchain image");
         }
 
         self.image_acquired = true;
+        Ok(())
     }
 
-    fn wait_frame(&mut self) -> xr::Time {
+    #[must_use]
+    fn wait_frame(&mut self) -> openxr::Result<xr::Time> {
         let frame_state = {
             tracy_span!("wait frame");
-            self.waiter.wait().unwrap()
+            self.waiter.wait()?
         };
         self.should_render = frame_state.should_render && !self.app_suspend_render;
-        frame_state.predicted_display_time
+        Ok(frame_state.predicted_display_time)
     }
-
-    fn begin_frame(&mut self) {
+    #[must_use]
+    fn begin_frame(&mut self) -> openxr::Result<()> {
         if self.image_acquired {
             tracy_span!("release old swapchain image");
             self.swapchain_data
                 .as_mut()
                 .expect("Image is acquired, yet we have no swapchain?")
                 .swapchain
-                .release_image()
-                .unwrap();
+                .release_image()?;
         }
 
         if self.swapchain_data.is_some() {
-            self.acquire_swapchain_image();
+            self.acquire_swapchain_image()?;
         }
 
         {
@@ -1152,6 +1173,7 @@ impl<G: GraphicsBackend> FrameController<G> {
         self.eyes_submitted = [None; 2];
         self.submitting_null = false;
         trace!("frame begin");
+        Ok(())
     }
 
     fn submit_impl(

@@ -1,17 +1,20 @@
 use crate::{
     clientcore::{Injected, Injector},
     graphics_backends::{supported_apis_enum, GraphicsBackend, VulkanData},
-    system,
 };
 use derive_more::Deref;
 use glam::f32::{Quat, Vec3};
 use log::{info, warn};
 use openvr as vr;
 use openxr::{self as xr, SessionState};
-use std::{cell::UnsafeCell, sync::{
-    RwLock, atomic::{AtomicI64, Ordering}
-}};
-use std::{mem::ManuallyDrop, sync::Mutex};
+use std::mem::ManuallyDrop;
+use std::{
+    cell::UnsafeCell,
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        RwLock,
+    },
+};
 
 #[cfg(feature = "monado")]
 use openxr_mndx_xdev_space::XR_MNDX_XDEV_SPACE_EXTENSION_NAME;
@@ -42,18 +45,18 @@ pub struct OpenXrData<C: Compositor> {
     pub display_time: AtomicXrTime,
     pub enabled_extensions: xr::ExtensionSet,
     //worst case Quit event will be send more then once but it avoids using atomics
-    pub exited: UnsafeSyncSend<UnsafeCell<bool>>,
+    exited: UnsafeSyncSend<UnsafeCell<bool>>,
     /// should only be externally accessed for testing
     pub(crate) input: Injected<crate::input::Input<C>>,
     pub(crate) system: Injected<crate::system::System>,
     pub(crate) compositor: Injected<C>,
 }
 #[derive(Default)]
-pub struct UnsafeSyncSend<T>{
-    pub inner:T
+pub struct UnsafeSyncSend<T> {
+    pub inner: T,
 }
-unsafe impl <T>Send for UnsafeSyncSend<T>{}
-unsafe impl <T>Sync for UnsafeSyncSend<T>{}
+unsafe impl<T> Send for UnsafeSyncSend<T> {}
+unsafe impl<T> Sync for UnsafeSyncSend<T> {}
 impl<C: Compositor> Drop for OpenXrData<C> {
     fn drop(&mut self) {
         let mut data = unsafe { ManuallyDrop::take(&mut *self.session_data.0.get_mut().unwrap()) };
@@ -197,15 +200,6 @@ impl<C: Compositor> OpenXrData<C> {
     fn poll_events_impl(&self, session_data: &SessionData) -> Option<xr::SessionState> {
         let mut buf = xr::EventDataBuffer::new();
         let mut state = None;
-        macro_rules! exit {
-            () => {{
-                let exited = unsafe { &mut *self.exited.inner.get() };
-                if!*exited {
-                    self.system.get().unwrap().events.lock().unwrap().push_back(system::SystemEvent::Exit);
-                    *exited = true;
-                }
-            }};
-        }
         while let Some(event) = self.instance.poll_event(&mut buf).unwrap() {
             match event {
                 xr::Event::SessionStateChanged(event) => {
@@ -217,7 +211,9 @@ impl<C: Compositor> OpenXrData<C> {
                     ]
                     .contains(&event.state())
                     {
-                        exit!()
+                        if !self.exited() {
+                            self.set_exited();
+                        }
                     }
                     info!("OpenXR session state changed: {:?}", event.state());
                 }
@@ -227,7 +223,9 @@ impl<C: Compositor> OpenXrData<C> {
                     }
                 }
                 xr::Event::InstanceLossPending(_) => {
-                    exit!()
+                    if !self.exited() {
+                        self.set_exited();
+                    }
                 }
                 _ => {
                     info!("unknown event");
@@ -352,6 +350,23 @@ impl<C: Compositor> OpenXrData<C> {
         while state != xr::SessionState::EXITING {
             if let Some(s) = self.poll_events_impl(session_data) {
                 state = s;
+            }
+        }
+    }
+    pub fn exited(&self) -> bool {
+        unsafe { *self.exited.inner.get() }
+    }
+    pub fn set_exited(&self) {
+        if !self.exited() {
+            self.system
+                .get()
+                .unwrap()
+                .events
+                .lock()
+                .unwrap()
+                .push_back(crate::system::SystemEvent::Exit);
+            unsafe {
+                self.exited.inner.get().write(true);
             }
         }
     }
