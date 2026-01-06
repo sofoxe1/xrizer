@@ -8,10 +8,9 @@ use glam::f32::{Quat, Vec3};
 use log::{info, warn};
 use openvr as vr;
 use openxr::{self as xr, SessionState};
-use std::sync::{
-    atomic::{AtomicI64, Ordering},
-    RwLock,
-};
+use std::{cell::UnsafeCell, sync::{
+    RwLock, atomic::{AtomicI64, Ordering}
+}};
 use std::{mem::ManuallyDrop, sync::Mutex};
 
 #[cfg(feature = "monado")]
@@ -42,13 +41,18 @@ pub struct OpenXrData<C: Compositor> {
     pub session_data: SessionReadGuard,
     pub display_time: AtomicXrTime,
     pub enabled_extensions: xr::ExtensionSet,
-    pub exited: Mutex<bool>,
+    //worst case Quit event will be send more then once but it avoids using atomics
+    pub exited: UnsafeSyncSend<UnsafeCell<bool>>,
     /// should only be externally accessed for testing
     pub(crate) input: Injected<crate::input::Input<C>>,
     pub(crate) system: Injected<crate::system::System>,
     pub(crate) compositor: Injected<C>,
 }
-
+pub struct UnsafeSyncSend<T>{
+    inner:T
+}
+unsafe impl <T>Send for UnsafeSyncSend<T>{}
+unsafe impl <T>Sync for UnsafeSyncSend<T>{}
 impl<C: Compositor> Drop for OpenXrData<C> {
     fn drop(&mut self) {
         let mut data = unsafe { ManuallyDrop::take(&mut *self.session_data.0.get_mut().unwrap()) };
@@ -194,15 +198,9 @@ impl<C: Compositor> OpenXrData<C> {
         let mut state = None;
         macro_rules! exit {
             () => {{
-                let mut exited = self.exited.lock().unwrap();
-                if !*exited {
-                    self.system
-                        .get()
-                        .unwrap()
-                        .events
-                        .lock()
-                        .unwrap()
-                        .push_back(system::SystemEvent::Exit);
+                let exited = unsafe { &mut *self.exited.inner.get() };
+                if!*exited {
+                    self.system.get().unwrap().events.lock().unwrap().push_back(system::SystemEvent::Exit);
                     *exited = true;
                 }
             }};

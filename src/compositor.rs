@@ -11,7 +11,7 @@ use crate::{
 use log::{debug, info, trace, warn};
 use openvr as vr;
 use openxr as xr;
-use std::mem::offset_of;
+use std::{mem::offset_of, sync::RwLock};
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc, Mutex, Once,
