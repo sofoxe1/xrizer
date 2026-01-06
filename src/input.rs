@@ -350,6 +350,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: *mut c_char,
         _: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("GetBindingVariant");
         vr::EVRInputError::None
     }
@@ -360,6 +363,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: vr::VRInputValueHandle_t,
         _: bool,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("OpenBindingUI");
         vr::EVRInputError::None
     }
@@ -375,6 +381,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: u32,
         _: *mut vr::RenderModel_ComponentState_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn ShowBindingsForActionSet(
@@ -384,6 +393,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: u32,
         _: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn ShowActionOrigins(
@@ -391,6 +403,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: vr::VRActionSetHandle_t,
         _: vr::VRActionHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn GetActionBindingInfo(
@@ -401,6 +416,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: u32,
         returned_binding_info_count: *mut u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("GetActionBindingInfo");
         if !returned_binding_info_count.is_null() {
             unsafe { *returned_binding_info_count = 0 };
@@ -413,6 +431,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         info: *mut vr::InputOriginInfo_t,
         info_size: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         assert_eq!(
             info_size as usize,
             std::mem::size_of::<vr::InputOriginInfo_t>()
@@ -452,6 +473,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: u32,
         _: i32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("GetOriginLocalizedName");
         vr::EVRInputError::None
     }
@@ -462,6 +486,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: *mut vr::VRInputValueHandle_t,
         _: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("GetActionOrigins");
         vr::EVRInputError::None
     }
@@ -474,6 +501,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         amplitude: f32,
         restrict_to_device: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         get_action_from_handle!(self, action, session_data, action);
         let Some(subaction_path) = self.subaction_path_from_handle(restrict_to_device) else {
             return vr::EVRInputError::None;
@@ -508,6 +538,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: *mut vr::VRBoneTransform_t,
         _: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn GetSkeletalBoneDataCompressed(
@@ -518,6 +551,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: u32,
         _: *mut u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn GetSkeletalSummaryData(
@@ -526,6 +562,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: vr::EVRSummaryType,
         data: *mut vr::VRSkeletalSummaryData_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("GetSkeletalSummaryData");
         get_action_from_handle!(self, action, session_data, _action);
         unsafe {
@@ -544,6 +583,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         transform_array: *mut vr::VRBoneTransform_t,
         transform_array_count: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         assert_eq!(
             transform_array_count,
             skeletal::HandSkeletonBone::Count as u32
@@ -576,6 +618,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action: vr::VRActionHandle_t,
         level: *mut vr::EVRSkeletalTrackingLevel,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         get_action_from_handle!(self, action, data, action);
         let ActionData::Skeleton { hand, .. } = action else {
             return vr::EVRInputError::WrongType;
@@ -609,6 +654,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         transform_array: *mut vr::VRBoneTransform_t,
         transform_array_count: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         // As far as I'm aware this is only/mainly used by HL:A
         // For some reason it is required to position the wrist bone at all times, at least when it comes to Quest controllers
 
@@ -635,6 +683,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: *mut c_char,
         _: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn GetBoneHierarchy(
@@ -643,9 +694,15 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         _: *mut vr::BoneIndex_t,
         _: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         todo!()
     }
     fn GetBoneCount(&self, handle: vr::VRActionHandle_t, count: *mut u32) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         get_action_from_handle!(self, handle, session_data, action);
         if !matches!(action, ActionData::Skeleton { .. }) {
             return vr::EVRInputError::WrongType;
@@ -659,10 +716,16 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         vr::EVRInputError::None
     }
     fn SetDominantHand(&self, _: vr::ETrackedControllerRole) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("SetDominantHand");
         vr::EVRInputError::None
     }
     fn GetDominantHand(&self, _: *mut vr::ETrackedControllerRole) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         crate::warn_unimplemented!("GetDominantHand");
         vr::EVRInputError::None
     }
@@ -672,6 +735,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_data: *mut vr::InputSkeletalActionData_t,
         _action_data_size: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         //assert_eq!(
         //    action_data_size as usize,
         //    std::mem::size_of::<vr::InputSkeletalActionData_t>()
@@ -709,6 +775,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_data_size: u32,
         restrict_to_device: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         assert_eq!(
             action_data_size as usize,
             std::mem::size_of::<vr::InputPoseActionData_t>()
@@ -851,6 +920,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_data_size: u32,
         restrict_to_device: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         self.GetPoseActionDataForNextFrame(
             action,
             origin,
@@ -867,6 +939,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_data_size: u32,
         restrict_to_device: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         assert_eq!(
             action_data_size as usize,
             std::mem::size_of::<vr::InputAnalogActionData_t>()
@@ -952,6 +1027,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_data_size: u32,
         restrict_to_device: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         assert_eq!(
             action_data_size as usize,
             std::mem::size_of::<vr::InputDigitalActionData_t>()
@@ -965,7 +1043,12 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
             return vr::EVRInputError::WrongType;
         };
 
-        let mut state = action.state(&session_data.session, subaction_path).unwrap();
+        let state = action.state(&session_data.session, subaction_path);
+        if let Err(openxr::sys::Result::ERROR_INSTANCE_LOST)=state{
+            self.openxr.set_exited();
+            return vr::EVRInputError::NoSteam;
+        }
+        let mut state=state.unwrap();
 
         let mut active_hand = restrict_to_device;
         if let Some((binding_state, binding_source)) =
@@ -996,6 +1079,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         active_set_size: u32,
         active_set_count: u32,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         assert_eq!(
             active_set_size as usize,
             std::mem::size_of::<vr::VRActiveActionSet_t>()
@@ -1045,7 +1131,12 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
 
         {
             tracy_span!("xrSyncActions");
-            data.session.sync_actions(&sync_sets).unwrap();
+            let res=data.session.sync_actions(&sync_sets);
+            if let Err(openxr::sys::Result::ERROR_INSTANCE_LOST)=res{
+                self.openxr.set_exited();
+            }else {
+                res.unwrap();
+            }
         }
 
         let devices = data.input_data.devices.read().unwrap();
@@ -1096,6 +1187,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         input_source_path: *const c_char,
         handle: *mut vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         let path = unsafe { CStr::from_ptr(input_source_path) };
 
         let ret = {
@@ -1124,6 +1218,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_name: *const c_char,
         handle: *mut vr::VRActionHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         let name = unsafe { CStr::from_ptr(action_name) }
             .to_string_lossy()
             .to_lowercase();
@@ -1151,6 +1248,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
         action_set_name: *const c_char,
         handle: *mut vr::VRActionSetHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         let name = unsafe { CStr::from_ptr(action_set_name) }
             .to_string_lossy()
             .to_lowercase();
@@ -1174,6 +1274,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput010_Interface for Input<C> {
     }
 
     fn SetActionManifestPath(&self, path: *const c_char) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         if path.is_null() {
             return vr::EVRInputError::InvalidParam;
         }
@@ -1207,6 +1310,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput005On006 for Input<C> {
         action: vr::VRActionHandle_t,
         summary_data: *mut vr::VRSkeletalSummaryData_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         <Self as vr::IVRInput010_Interface>::GetSkeletalSummaryData(
             self,
             action,
@@ -1225,6 +1331,9 @@ impl<C: openxr_data::Compositor> vr::IVRInput005On006 for Input<C> {
         action_data_size: u32,
         restrict_to_device: vr::VRInputValueHandle_t,
     ) -> vr::EVRInputError {
+        if self.openxr.exited(){
+            return vr::EVRInputError::NoSteam;
+        }
         <Self as vr::IVRInput010_Interface>::GetPoseActionDataRelativeToNow(
             self,
             action,

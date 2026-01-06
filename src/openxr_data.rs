@@ -190,46 +190,53 @@ impl<C: Compositor> OpenXrData<C> {
     }
 
     pub fn poll_events(&self) {
-        let data = self.session_data.get();
-        if let Some(state) = self.poll_events_impl(&data) {
-            drop(data);
-            self.session_data.0.write().unwrap().state = state;
+        if !self.exited() {
+            let data = self.session_data.get();
+            if let Some(state) = self.poll_events_impl(&data) {
+                drop(data);
+                self.session_data.0.write().unwrap().state = state;
+            }
         }
     }
 
     fn poll_events_impl(&self, session_data: &SessionData) -> Option<xr::SessionState> {
         let mut buf = xr::EventDataBuffer::new();
         let mut state = None;
-        while let Some(event) = self.instance.poll_event(&mut buf).unwrap() {
-            match event {
-                xr::Event::SessionStateChanged(event) => {
-                    state = Some(event.state());
-                    if [
-                        SessionState::EXITING,
-                        SessionState::LOSS_PENDING,
-                        SessionState::STOPPING,
-                    ]
-                    .contains(&event.state())
-                    {
-                        if !self.exited() {
-                            self.set_exited();
+        loop {
+            let res = self.instance.poll_event(&mut buf);
+            if let Err(openxr::sys::Result::ERROR_INSTANCE_LOST) = res {
+                self.set_exited();
+                return Some(xr::SessionState::EXITING);
+            }
+            if let Some(event) = res.unwrap() {
+                match event {
+                    xr::Event::SessionStateChanged(event) => {
+                        state = Some(event.state());
+                        if [
+                            SessionState::EXITING,
+                            SessionState::LOSS_PENDING,
+                            SessionState::STOPPING,
+                        ]
+                        .contains(&event.state())
+                        {
+                            // self.set_exited();
+                        }
+                        info!("OpenXR session state changed: {:?}", event.state());
+                    }
+                    xr::Event::InteractionProfileChanged(_) => {
+                        if let Some(input) = self.input.get() {
+                            input.interaction_profile_changed(session_data);
                         }
                     }
-                    info!("OpenXR session state changed: {:?}", event.state());
-                }
-                xr::Event::InteractionProfileChanged(_) => {
-                    if let Some(input) = self.input.get() {
-                        input.interaction_profile_changed(session_data);
+                    xr::Event::InstanceLossPending(_) => {
+                        // self.set_exited();
+                    }
+                    _ => {
+                        info!("unknown event");
                     }
                 }
-                xr::Event::InstanceLossPending(_) => {
-                    if !self.exited() {
-                        self.set_exited();
-                    }
-                }
-                _ => {
-                    info!("unknown event");
-                }
+            } else {
+                break;
             }
         }
 
@@ -335,9 +342,12 @@ impl<C: Compositor> OpenXrData<C> {
     }
 
     fn end_session(&self, session_data: &mut SessionData) {
+        if self.exited(){
+            return;
+        }
         session_data.session.request_exit().unwrap();
         let mut state = session_data.state;
-        while state != xr::SessionState::STOPPING {
+        while state != xr::SessionState::STOPPING && !self.exited() {
             if let Some(s) = self.poll_events_impl(session_data) {
                 state = s;
             }
@@ -346,8 +356,10 @@ impl<C: Compositor> OpenXrData<C> {
         if let Some(comp) = self.compositor.get() {
             comp.on_restart();
         }
+        if !self.exited(){
         session_data.session.end().unwrap();
-        while state != xr::SessionState::EXITING {
+        }
+        while state != xr::SessionState::EXITING && !self.exited() {
             if let Some(s) = self.poll_events_impl(session_data) {
                 state = s;
             }
@@ -355,18 +367,19 @@ impl<C: Compositor> OpenXrData<C> {
     }
     pub fn exited(&self) -> bool {
         unsafe { *self.exited.inner.get() }
+        // false
     }
     pub fn set_exited(&self) {
         if !self.exited() {
-            self.system
-                .get()
-                .unwrap()
-                .events
-                .lock()
-                .unwrap()
-                .push_back(crate::system::SystemEvent::Exit);
-            unsafe {
-                self.exited.inner.get().write(true);
+            if let Some(system) = self.system.get() {
+                system
+                    .events
+                    .lock()
+                    .unwrap()
+                    .push_back(crate::system::SystemEvent::Exit);
+                unsafe {
+                    self.exited.inner.get().write(true);
+                }
             }
         }
     }

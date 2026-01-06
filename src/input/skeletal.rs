@@ -23,6 +23,9 @@ impl<C: openxr_data::Compositor> Input<C> {
         hand: Hand,
         transforms: &mut [vr::VRBoneTransform_t],
     ) {
+        if self.openxr.exited(){
+            return;
+        }
         use HandSkeletonBone::*;
 
         let pose_data = session_data.input_data.pose_data.get().unwrap();
@@ -172,6 +175,9 @@ impl<C: openxr_data::Compositor> Input<C> {
         hand: Hand,
         transforms: &mut [vr::VRBoneTransform_t],
     ) {
+         if self.openxr.exited(){
+            return;
+        }
         let finger_state = self.get_finger_state(session_data, hand);
         let (open, fist) = match hand {
             Hand::Left => (&gen::left_hand::OPENHAND, &gen::left_hand::FIST),

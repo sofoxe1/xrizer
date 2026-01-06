@@ -11,13 +11,13 @@ use crate::{
 use log::{debug, info, trace, warn};
 use openvr as vr;
 use openxr as xr;
+use std::mem::offset_of;
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc, Mutex, Once,
 };
 use std::time::Instant;
 use std::{ffi::c_char, ops::Deref};
-use std::mem::offset_of;
 
 #[derive(Default)]
 pub struct CompositorSessionData(Mutex<Option<DynFrameController>>);
@@ -742,6 +742,10 @@ impl vr::IVRCompositor029_Interface for Compositor {
         bounds: *const vr::VRTextureBounds_t,
         submit_flags: vr::EVRSubmitFlags,
     ) -> vr::EVRCompositorError {
+        //return early if openxr runtime is no longer avalible
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         let bounds = unsafe { bounds.as_ref() }
             .copied()
             .unwrap_or(vr::VRTextureBounds_t {
@@ -908,11 +912,20 @@ impl vr::IVRCompositor029_Interface for Compositor {
             if *self.frame_state.lock().unwrap() == FrameState::Waited {
                 // discard frame
                 self.maybe_begin_frame(&session_data);
+                if self.openxr.exited() {
+                    return vr::EVRCompositorError::RequestFailed;
+                }
             }
             self.maybe_wait_frame(&session_data);
+            if self.openxr.exited() {
+                return vr::EVRCompositorError::RequestFailed;
+            }
 
             if timing_mode == vr::EVRCompositorTimingMode::Implicit {
                 self.maybe_begin_frame(&session_data);
+                if self.openxr.exited() {
+                    return vr::EVRCompositorError::RequestFailed;
+                }
             }
         }
         if let Some(system) = self.system.get() {
@@ -1242,7 +1255,13 @@ impl<G: GraphicsBackend> FrameController<G> {
             let mut swapchain_data = self.swapchain_data.as_mut();
             if let Some(data) = &mut swapchain_data {
                 trace!("releasing image");
-                data.swapchain.release_image().unwrap();
+                data.swapchain.release_image().map_err(|e| {
+                    if e == openxr::sys::Result::ERROR_INSTANCE_LOST {
+                        vr::EVRCompositorError::RequestFailed
+                    } else {
+                        panic!("{:?}", e);
+                    }
+                })?;
             }
             self.image_acquired = false;
         }
