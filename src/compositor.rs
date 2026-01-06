@@ -867,6 +867,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         tracy_span!("WaitGetPoses impl");
         // This should be called every frame - we must regularly poll events
         self.openxr.poll_events();
+        if unsafe{*self.openxr.exited.inner.get()}{
+            return vr::EVRCompositorError::RequestFailed;
+        }
         self.focused.call_once(|| {});
         {
             let session_data = self.openxr.session_data.get();

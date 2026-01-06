@@ -48,8 +48,9 @@ pub struct OpenXrData<C: Compositor> {
     pub(crate) system: Injected<crate::system::System>,
     pub(crate) compositor: Injected<C>,
 }
+#[derive(Default)]
 pub struct UnsafeSyncSend<T>{
-    inner:T
+    pub inner:T
 }
 unsafe impl <T>Send for UnsafeSyncSend<T>{}
 unsafe impl <T>Sync for UnsafeSyncSend<T>{}
@@ -181,7 +182,7 @@ impl<C: Compositor> OpenXrData<C> {
             input: injector.inject(),
             compositor: injector.inject(),
             system: injector.inject(),
-            exited: Mutex::default(),
+            exited: Default::default(),
         })
     }
 
