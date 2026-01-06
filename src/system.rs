@@ -9,8 +9,11 @@ use glam::{Mat3, Quat, Vec3};
 use log::{debug, error, trace, warn};
 use openvr as vr;
 use openxr as xr;
-use std::ffi::{CStr, CString};
 use std::sync::{Arc, Mutex};
+use std::{
+    collections::VecDeque,
+    ffi::{CStr, CString},
+};
 
 #[derive(Copy, Clone)]
 pub struct ViewData {
@@ -146,7 +149,9 @@ impl ViewCache {
         }
     }
 }
-
+pub(crate) enum SystemEvent {
+    Exit,
+}
 #[derive(macros::InterfaceImpl)]
 #[interface = "IVRSystem"]
 #[versions(023, 022, 021, 020, 019, 017, 016, 015, 014, 012, 009)]
@@ -156,8 +161,8 @@ pub struct System {
     overlay: Injected<OverlayMan>,
     vtables: Vtables,
     views: Mutex<ViewCache>,
+    pub(crate) events: Mutex<VecDeque<SystemEvent>>,
 }
-
 mod log_tags {
     pub const TRACKED_PROP: &str = "tracked_property";
 }
@@ -170,6 +175,7 @@ impl System {
             overlay: injector.inject(),
             vtables: Default::default(),
             views: Mutex::default(),
+            events: Mutex::default(),
         }
     }
 
@@ -486,14 +492,30 @@ impl vr::IVRSystem023_Interface for System {
         let Some(input) = self.input.get() else {
             return false;
         };
-
-        let got_event = input.get_next_event(size, event);
-        if got_event && !pose.is_null() {
-            unsafe {
-                let index = (&raw const (*event).trackedDeviceIndex).read();
-                pose.write(input.get_device_pose(index, Some(origin)).unwrap());
+        let mut system_events = self.events.lock().unwrap();
+        let got_event:bool;
+        if let Some(system_event) = system_events.pop_front() {
+            got_event = true;
+            match system_event {
+                SystemEvent::Exit => unsafe {
+                    event.write(vr::VREvent_t {
+                        eventType: vr::EVREventType::Quit as u32,
+                        trackedDeviceIndex: 0,
+                        eventAgeSeconds: 0.0,
+                        data: openvr::VREvent_Data_t::default(),
+                    });
+                },
+            }
+        } else {
+            got_event = input.get_next_event(size, event);
+            if got_event && !pose.is_null() {
+                unsafe {
+                    let index = (&raw const (*event).trackedDeviceIndex).read();
+                    pose.write(input.get_device_pose(index, Some(origin)).unwrap());
+                }
             }
         }
+
         got_event
     }
 
