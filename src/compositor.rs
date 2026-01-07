@@ -325,6 +325,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         _pPoseArray: *mut vr::TrackedDevicePose_t,
         _unPoseArrayCount: u32,
     ) -> vr::EVRCompositorError {
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         todo!()
     }
     fn GetLastPosePredictionIDs(
@@ -332,6 +335,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         _pRenderPosePredictionID: *mut u32,
         _pGamePosePredictionID: *mut u32,
     ) -> vr::EVRCompositorError {
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         crate::warn_unimplemented!("GetLastPosePredictionIDs");
         vr::EVRCompositorError::None
     }
@@ -351,6 +357,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         _pRenderSettings: *const vr::Compositor_StageRenderSettings,
         _nSizeOfRenderSettings: u32,
     ) -> vr::EVRCompositorError {
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         crate::warn_unimplemented!("SetStageOverride_Async");
         vr::EVRCompositorError::None
     }
@@ -364,6 +373,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         todo!()
     }
     fn SubmitExplicitTimingData(&self) -> vr::EVRCompositorError {
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         if *self.timing_mode.lock().unwrap() == vr::EVRCompositorTimingMode::Implicit {
             return vr::EVRCompositorError::RequestFailed;
         }
@@ -664,7 +676,8 @@ impl vr::IVRCompositor029_Interface for Compositor {
             system: &System,
             display_time: xr::Time,
             overlays: Option<&OverlayMan>,
-        ) where
+        ) -> openxr::Result<()>
+        where
             for<'b> &'b crate::overlay::AnySwapchainMap:
                 TryInto<&'b crate::overlay::SwapchainMap<G::Api>, Error: std::fmt::Display>,
         {
@@ -687,12 +700,16 @@ impl vr::IVRCompositor029_Interface for Compositor {
         let display_time = self.openxr.display_time.get();
         let overlays = self.overlays.get();
 
-        ctrl.with_any_graphics_mut::<end_frame>((
+        let ret = ctrl.with_any_graphics_mut::<end_frame>((
             &session_data,
             &system,
             display_time,
             overlays.as_deref(),
         ));
+        if let Err(openxr::sys::Result::ERROR_INSTANCE_LOST) = ret {
+            self.openxr.set_exited();
+            return;
+        }
 
         self.frame_state
             .lock()
@@ -719,6 +736,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         _pBounds: *const vr::VRTextureBounds_t,
         _nSubmitFlags: vr::EVRSubmitFlags,
     ) -> vr::EVRCompositorError {
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         todo!()
     }
 
@@ -732,6 +752,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         _: vr::EVRSubmitFlags,
     ) -> vr::EVRCompositorError {
         crate::warn_unimplemented!("GetSubmitTexture");
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         vr::EVRCompositorError::IncompatibleVersion
     }
 
@@ -832,6 +855,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         output_pose: *mut vr::TrackedDevicePose_t,
         output_game_pose: *mut vr::TrackedDevicePose_t,
     ) -> vr::EVRCompositorError {
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         if output_pose.is_null() && output_game_pose.is_null() {
             return vr::EVRCompositorError::RequestFailed;
         }
@@ -860,6 +886,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
         game_pose_count: u32,
     ) -> vr::EVRCompositorError {
         tracy_span!("GetLastPoses impl");
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
+        }
         if render_pose_count == 0 {
             return vr::EVRCompositorError::None;
         }
@@ -907,6 +936,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
             ) && *self.frame_state.lock().unwrap() == FrameState::Begun
             {
                 self.PostPresentHandoff();
+                if self.openxr.exited() {
+                    return vr::EVRCompositorError::RequestFailed;
+                }
             }
 
             if *self.frame_state.lock().unwrap() == FrameState::Waited {
@@ -927,6 +959,9 @@ impl vr::IVRCompositor029_Interface for Compositor {
                     return vr::EVRCompositorError::RequestFailed;
                 }
             }
+        }
+        if self.openxr.exited() {
+            return vr::EVRCompositorError::RequestFailed;
         }
         if let Some(system) = self.system.get() {
             system.reset_views();
@@ -1268,14 +1303,15 @@ impl<G: GraphicsBackend> FrameController<G> {
 
         Ok(())
     }
-
+    #[must_use]
     fn end_frame(
         &mut self,
         session_data: &SessionData,
         system: &System,
         display_time: xr::Time,
         overlays: Option<&OverlayMan>,
-    ) where
+    ) -> openxr::Result<()>
+    where
         for<'b> &'b crate::overlay::AnySwapchainMap:
             TryInto<&'b crate::overlay::SwapchainMap<G::Api>, Error: std::fmt::Display>,
     {
@@ -1356,10 +1392,10 @@ impl<G: GraphicsBackend> FrameController<G> {
         }
 
         self.stream
-            .end(display_time, xr::EnvironmentBlendMode::OPAQUE, &layers)
-            .unwrap();
+            .end(display_time, xr::EnvironmentBlendMode::OPAQUE, &layers)?;
 
         trace!("frame submitted");
+        Ok(())
     }
 }
 
